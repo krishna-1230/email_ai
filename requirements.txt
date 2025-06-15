@@ -1,0 +1,31 @@
+# Core dependencies
+streamlit>=1.32.0
+python-dotenv>=1.0.0
+langchain>=0.1.0
+langchain-google-genai>=0.0.5
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.1.1
+google-api-python-client>=2.118.0
+
+# Vector database
+pinecone>=3.0.0
+
+# Local LLM
+ollama>=0.1.0
+
+# Utilities
+python-dateutil>=2.8.2
+pytz>=2024.1
+cryptography>=42.0.0
+pydantic>=2.6.0
+tenacity>=8.2.3
+
+# Testing
+pytest>=8.0.0
+pytest-cov>=4.1.0
+
+# Development
+black>=24.1.0
+isort>=5.13.0
+flake8>=7.0.0
+mypy>=1.8.0 
