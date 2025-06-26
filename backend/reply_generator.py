@@ -106,18 +106,48 @@ class ReplyGenerator:
                     logging.warning(f"Skipping Pinecone upsert for tone '{tone}': empty reply.")
                     continue
 
-                self.index.upsert([
-                    {
-                        'id': f"{tone}_{hash(reply)}",
-                        'values': {"text": reply},  # Let Pinecone embed it
-                        'metadata': {
-                            'tone': tone,
-                            'reply': reply,
-                            'sentiment': thread_analysis['sentiment']['sentiment'],
-                            'urgency': thread_analysis['urgency']
+                # Create a proper vector instead of passing text directly to Pinecone
+                try:
+                    # Generate embedding using Gemini for reply text
+                    embedding = genai.embed_content(
+                        model="models/embedding-001",
+                        content=reply,
+                        task_type="retrieval_document",
+                    )
+                    
+                    # Extract the embedding values
+                    if hasattr(embedding, 'embedding'):
+                        embedding_values = embedding.embedding
+                    else:
+                        embedding_values = embedding['embedding']
+                    
+                    # Pad or truncate the embedding to match Pinecone index dimensions (1024)
+                    pinecone_dimension = int(os.getenv("PINECONE_DIMENSIONS", 1024))
+                    current_dimension = len(embedding_values)
+                    
+                    if current_dimension < pinecone_dimension:
+                        # Pad with zeros
+                        padding = [0.0] * (pinecone_dimension - current_dimension)
+                        embedding_values = embedding_values + padding
+                    elif current_dimension > pinecone_dimension:
+                        # Truncate
+                        embedding_values = embedding_values[:pinecone_dimension]
+                        
+                    # Create the record with proper vector format
+                    self.index.upsert([
+                        {
+                            'id': f"{tone}_{hash(reply)}",
+                            'values': embedding_values,  # Now using properly sized vector values
+                            'metadata': {
+                                'tone': tone,
+                                'reply': reply,
+                                'sentiment': thread_analysis['sentiment']['sentiment'],
+                                'urgency': thread_analysis['urgency']
+                            }
                         }
-                    }
-                ])
+                    ])
+                except Exception as e:
+                    logging.error(f"Error generating embedding for reply: {e}")
         except Exception as e:
             logging.error(f"Error storing replies in Pinecone: {e}")
 
@@ -131,20 +161,50 @@ class ReplyGenerator:
                 logging.warning("Skipping similarity search: query is empty.")
                 return []
 
-            results = self.index.query(
-                vector={"text": query},  # Let Pinecone embed it
-                top_k=k,
-                include_metadata=True
-            )
-
-            return [
-                {
-                    'tone': match.metadata['tone'],
-                    'reply': match.metadata['reply'],
-                    'score': match.score
-                }
-                for match in results.matches
-            ]
+            # Generate embedding for the query
+            try:
+                embedding = genai.embed_content(
+                    model="models/embedding-001",
+                    content=query,
+                    task_type="retrieval_document",
+                )
+                
+                # Extract the embedding values
+                if hasattr(embedding, 'embedding'):
+                    embedding_values = embedding.embedding
+                else:
+                    embedding_values = embedding['embedding']
+                
+                # Pad or truncate the embedding to match Pinecone index dimensions (1024)
+                pinecone_dimension = int(os.getenv("PINECONE_DIMENSIONS", 1024))
+                current_dimension = len(embedding_values)
+                
+                if current_dimension < pinecone_dimension:
+                    # Pad with zeros
+                    padding = [0.0] * (pinecone_dimension - current_dimension)
+                    embedding_values = embedding_values + padding
+                elif current_dimension > pinecone_dimension:
+                    # Truncate
+                    embedding_values = embedding_values[:pinecone_dimension]
+                    
+                # Query Pinecone with the actual vector values
+                results = self.index.query(
+                    vector=embedding_values,
+                    top_k=k,
+                    include_metadata=True
+                )
+                
+                return [
+                    {
+                        'tone': match.metadata['tone'],
+                        'reply': match.metadata['reply'],
+                        'score': match.score
+                    }
+                    for match in results.matches
+                ]
+            except Exception as e:
+                logging.error(f"Error generating embedding for query: {e}")
+                return []
         except Exception as e:
             logging.error(f"Error retrieving similar replies: {e}")
             return []
@@ -213,24 +273,50 @@ class ReplyGenerator:
                 logging.warning("Skipping similarity search: email content is empty.")
                 return []
             
-            # Query Pinecone for similar emails
-            results = self.index.query(
-                vector={"text": email_content},
-                top_k=limit,
-                include_metadata=True
-            )
-            
-            # Format results
-            similar_emails = []
-            for match in results.matches:
-                similar_emails.append({
-                    'reply': match.metadata.get('reply', ''),
-                    'tone': match.metadata.get('tone', 'unknown'),
-                    'sentiment': match.metadata.get('sentiment', 'neutral'),
-                    'similarity_score': match.score
-                })
-            
-            return similar_emails
+            # Generate embedding for the email content
+            try:
+                embedding = genai.embed_content(
+                    model="models/embedding-001",
+                    content=email_content,
+                    task_type="retrieval_document",
+                )
+                
+                # Extract the embedding values
+                if hasattr(embedding, 'embedding'):
+                    embedding_values = embedding.embedding
+                else:
+                    embedding_values = embedding['embedding']
+                
+                # Pad or truncate the embedding to match Pinecone index dimensions (1024)
+                pinecone_dimension = int(os.getenv("PINECONE_DIMENSIONS", 1024))
+                current_dimension = len(embedding_values)
+                
+                if current_dimension < pinecone_dimension:
+                    # Pad with zeros
+                    padding = [0.0] * (pinecone_dimension - current_dimension)
+                    embedding_values = embedding_values + padding
+                elif current_dimension > pinecone_dimension:
+                    # Truncate
+                    embedding_values = embedding_values[:pinecone_dimension]
+                
+                # Query Pinecone with the actual vector values
+                results = self.index.query(
+                    vector=embedding_values,
+                    top_k=limit,
+                    include_metadata=True
+                )
+                
+                return [
+                    {
+                        'email': match.metadata.get('email', 'No email content'),
+                        'subject': match.metadata.get('subject', 'No subject'),
+                        'score': match.score
+                    }
+                    for match in results.matches
+                ]
+            except Exception as e:
+                logging.error(f"Error generating embedding for email content: {e}")
+                return []
         except Exception as e:
-            logging.error(f"Error finding similar emails: {e}")
+            logging.error(f"Error retrieving similar emails: {e}")
             return []

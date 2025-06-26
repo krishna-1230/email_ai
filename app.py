@@ -1,15 +1,16 @@
 import streamlit as st
 import os
+import datetime
+from pathlib import Path
 from dotenv import load_dotenv
 from backend.email_reader import EmailReader
 from backend.context_analyzer import ContextAnalyzer
 from backend.reply_generator import ReplyGenerator
 from backend.scheduler import MeetingScheduler
 from backend.translator import EmailTranslator
+from backend.simple_email_sender import send_reply_email
 from utils.auth import check_credentials, revoke_credentials, get_gmail_service
 from utils.config import get_config
-import datetime
-import traceback
 
 # Load environment variables
 load_dotenv()
@@ -29,6 +30,10 @@ if 'selected_tone' not in st.session_state:
     st.session_state.selected_tone = None
 if 'meeting_details_open' not in st.session_state:
     st.session_state.meeting_details_open = False
+if 'reply_just_sent' not in st.session_state:
+    st.session_state.reply_just_sent = False
+if 'recipient_email' not in st.session_state:
+    st.session_state.recipient_email = None
 
 # Load and validate configuration
 try:
@@ -42,6 +47,18 @@ except ValueError as e:
 try:
     gmail_service, gmail_creds = get_gmail_service()
     email_reader = EmailReader(gmail_service)
+    
+    # Check if we have send permission
+    if not getattr(email_reader, 'can_send', True):
+        st.warning("⚠️ Your Gmail authorization is missing send permission. You won't be able to send replies.")
+        if st.button("Reauthorize with Send Permission"):
+            # Delete the token file to force reauthorization
+            token_path = Path('token.pickle')
+            if token_path.exists():
+                token_path.unlink()
+            st.success("Token deleted. Please refresh the page to reauthorize.")
+            st.button("Refresh Now", on_click=st.experimental_rerun)
+    
     context_analyzer = ContextAnalyzer()
     reply_generator = ReplyGenerator()
     meeting_scheduler = MeetingScheduler(gmail_creds)
@@ -52,6 +69,30 @@ except Exception as e:
     st.stop()
 
 def main():
+    # Initialize session state for various app features
+    if 'threads' not in st.session_state:
+        st.session_state.threads = []
+    if 'selected_thread' not in st.session_state:
+        st.session_state.selected_thread = None
+    if 'thread_index' not in st.session_state:
+        st.session_state.thread_index = -1
+    if 'translated_messages' not in st.session_state:
+        st.session_state.translated_messages = {}
+    if 'detected_languages' not in st.session_state:
+        st.session_state.detected_languages = {}
+    if 'meeting_details_open' not in st.session_state:
+        st.session_state.meeting_details_open = False
+        
+    # Email sending state variables
+    if 'reply_just_sent' not in st.session_state:
+        st.session_state.reply_just_sent = False
+    if 'reply_method' not in st.session_state:
+        st.session_state.reply_method = None
+    if 'recipient_email' not in st.session_state:
+        st.session_state.recipient_email = None
+    if 'message_confirmed' not in st.session_state:
+        st.session_state.message_confirmed = False
+    
     st.title("AI-Powered Email Assistant")
     
     # Check authentication
@@ -68,6 +109,15 @@ def main():
     # Sidebar
     with st.sidebar:
         st.header("Settings")
+        
+        # Email settings
+        st.subheader("Email Settings")
+        smtp_username = os.environ.get("SMTP_USERNAME")
+        smtp_password = os.environ.get("SMTP_PASSWORD")
+        if smtp_username and smtp_password:
+            st.success(f"✅ SMTP configured for: {smtp_username}")
+        else:
+            st.warning("⚠️ SMTP not configured. Set SMTP_USERNAME and SMTP_PASSWORD in .env file.")
         
         # Language selection
         st.subheader("Translation")
@@ -87,6 +137,31 @@ def main():
         if st.button("Logout"):
             revoke_credentials()
             st.experimental_rerun()
+
+        # Send Reply section (renamed from Debug Tools)
+        st.subheader("Send Reply")
+        with st.form("send_reply_form"):
+            test_email = st.text_input("Recipient email")
+            test_message = st.text_area("Message", "This is a message from the AI Email Assistant.")
+            test_subject = st.text_input("Subject", "Email from AI Assistant")
+            test_submit = st.form_submit_button("Send Email")
+            
+            if test_submit and test_email:
+                with st.spinner("Sending email..."):
+                    try:
+                        success = send_reply_email(
+                            recipient_email=test_email,
+                            message_body=test_message,
+                            subject=test_subject,
+                            sender_name="AI Email Assistant"
+                        )
+                        
+                        if success:
+                            st.success(f"✅ Email sent to {test_email}")
+                        else:
+                            st.error("❌ Email failed to send")
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
     
     # Main content
     st.header("Email Threads")
@@ -104,6 +179,7 @@ def main():
         st.info("No email threads found.")
         return
     
+
     # Thread selection
     thread_options = {
         f"{thread['messages'][-1]['subject']} - {thread['messages'][-1]['sender']}": thread
@@ -229,26 +305,94 @@ def main():
                             
                             # Display replies in tabs
                             tabs = st.tabs(["Formal", "Casual", "Direct"])
+                            
+                            # Get sender information for reply
+                            latest_message = thread['messages'][-1]
+                            
+                            # Extract the sender's email address from the latest message
+                            original_sender = latest_message['sender']
+                            
+                            # Parse the email address from the sender field which might be in format "Name <email@example.com>"
+                            if '<' in original_sender and '>' in original_sender:
+                                reply_to_email = original_sender.split('<')[1].split('>')[0].strip()
+                            else:
+                                reply_to_email = original_sender.strip()
+                            
+                            # Ensure we have a valid email address
+                            if not reply_to_email or reply_to_email.strip() == '':
+                                # If we can't extract a valid email, use the user's own email
+                                profile = email_reader.service.users().getProfile(userId='me').execute()
+                                reply_to_email = profile.get('emailAddress', '')
+                            
+                            # Show the recipient email in the UI for verification
+                            st.info(f"**Reply will be sent to:** {reply_to_email}")
+                            
+                            # Get subject from the latest message
+                            subject = latest_message['subject']
+                            
                             for tab, (tone, reply) in zip(tabs, replies.items()):
                                 with tab:
                                     st.write(reply)
                                     if st.button(f"Use {tone.title()} Reply", key=f"use_{tone}"):
+                                        # Store the reply in session state
                                         st.session_state.selected_reply = reply
                                         st.session_state.selected_tone = tone
+                                        
+                                        # Send the reply immediately using our simple function
+                                        with st.spinner(f"Sending {tone} reply..."):
+                                            # Add Re: to subject if not already present
+                                            if not subject.startswith("Re:"):
+                                                email_subject = f"Re: {subject}"
+                                            else:
+                                                email_subject = subject
+                                                
+                                            # Determine sender name based on tone
+                                            sender_name = f"AI Assistant ({tone.title()})"
+                                            
+                                            # Use the simple_email_sender function
+                                            try:
+                                                success = send_reply_email(
+                                                    recipient_email=reply_to_email,
+                                                    message_body=reply,
+                                                    subject=email_subject,
+                                                    sender_name=sender_name
+                                                )
+                                                
+                                                if success:
+                                                    # Update session state
+                                                    st.session_state.reply_just_sent = True
+                                                    st.session_state.reply_method = "SMTP_DIRECT"
+                                                    st.session_state.recipient_email = reply_to_email
+                                                    
+                                                    # Show success message to user
+                                                    st.success(f"""
+                                                    ✅ {tone.title()} reply sent successfully to {reply_to_email}!
+                                                    
+                                                    **Subject:** {subject}
+                                                    
+                                                    ℹ️ **Important Notes:**
+                                                    1. Emails may take a few minutes to appear in recipients' inboxes
+                                                    2. Check your sent folder to confirm delivery
+                                                    """)
+                                                    
+                                                    # Refresh button
+                                                    if st.button("Refresh", key=f"refresh_{tone}"):
+                                                        st.experimental_rerun()
+                                                        
+                                                else:
+                                                    # Show error message
+                                                    st.error(f"""
+                                                    ❌ Failed to send {tone} reply.
+                                                    
+                                                    Please check the logs for more information.
+                                                    """)
+                                                    
+                                                    # Let user try again
+                                                    if st.button("Try Again", key=f"retry_{tone}"):
+                                                        st.experimental_rerun()
+                                            except Exception as e:
+                                                st.error(f"Error sending email: {str(e)}")
                             
-                            # Display selected reply
-                            if 'selected_reply' in st.session_state and st.session_state.selected_reply:
-                                st.subheader(f"Selected Reply ({st.session_state.selected_tone})")
-                                st.write(st.session_state.selected_reply)
-                                
-                                # Add feedback buttons
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    if st.button("👍 Good Reply"):
-                                        st.success("Thank you for your feedback!")
-                                with col2:
-                                    if st.button("👎 Needs Improvement"):
-                                        st.info("We'll use your feedback to improve our suggestions.")
                         except Exception as e:
                             st.error(f"Reply Generation Error: {str(e)}")
                 except Exception as e:
@@ -259,5 +403,7 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
+        logger.error(f"Application Error: {str(e)}")
+        logger.error(traceback.format_exc())
         st.error(f"Application Error: {str(e)}")
         st.code(traceback.format_exc()) 

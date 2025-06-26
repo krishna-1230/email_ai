@@ -12,6 +12,7 @@ An intelligent email assistant that helps you manage your inbox by analyzing ema
 - 🔒 Secure credential management
 - 🚀 Local LLM support with Llama 3.2
 - 🗄️ Serverless vector storage with Pinecone
+- ✉️ Direct email sending via SMTP
 
 ## Prerequisites
 
@@ -152,6 +153,12 @@ ENABLE_AUTO_TRANSLATION=False
 # Security Settings
 ENCRYPTION_KEY=your_encryption_key
 SESSION_TIMEOUT_MINUTES=60
+
+# SMTP Email Settings (for simpler email sending)
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
 ```
 
 You can generate an encryption key using:
@@ -186,6 +193,43 @@ streamlit run app.py
 - Pinecone serverless provides secure vector storage
 
 ## Troubleshooting
+
+### Gmail Authorization Issues
+
+If you encounter authorization issues:
+1. Click "Reauthorize with Send Permission" button if shown
+2. Ensure you've granted both read and send permissions to the application
+3. Delete the token.pickle file to force reauthorization
+
+### Email Sending Issues
+
+If replies aren't appearing in the sender/recipient inboxes:
+1. Check your Gmail spam folder
+2. Verify that you've configured the correct SMTP settings in the .env file
+3. For Gmail, make sure you're using an App Password if you have 2FA enabled
+4. Look in your Sent folder to ensure the email was sent
+
+#### Using SMTP Email Sending
+
+For email sending using SMTP:
+1. Set up your SMTP credentials in the `.env` file:
+   ```
+   SMTP_SERVER=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USERNAME=your_email@gmail.com
+   SMTP_PASSWORD=your_app_password
+   ```
+2. For Gmail, you'll need to create an App Password:
+   - Go to your Google Account > Security > 2-Step Verification
+   - At the bottom, click "App passwords"
+   - Select "Mail" and "Other (Custom name)"
+   - Enter "Email AI Assistant" and generate
+   - Copy the 16-character password to your `.env` file
+
+### API Limits and Quotas
+
+- The Gemini API has rate limits that may affect reply generation
+- Gmail API also has quotas to prevent abuse
 
 ### Gmail API Authentication Issues
 
@@ -227,6 +271,32 @@ streamlit run app.py
 
 - **Error**: "Quota exceeded"
   - **Solution**: Check your usage in the Google AI Studio dashboard.
+
+## Email Sending Features
+
+The application now provides two main ways to send emails:
+
+### 1. AI-Generated Replies
+After analyzing an email thread, you can send AI-generated replies in different tones:
+1. Select an email thread from the dropdown
+2. Click "Analyze Thread"
+3. Review the suggested replies in the "Formal", "Casual", or "Direct" tabs
+4. Click "Use [tone] Reply" to send the reply immediately to the original sender
+
+### 2. Direct Email Sending
+The "Send Reply" section in the sidebar allows you to send custom emails directly:
+1. Enter the recipient's email address
+2. Write your message
+3. Set a subject line
+4. Click "Send Email"
+
+Both methods use the secure SMTP connection configured in your .env file.
+
+### Notes on Email Addresses
+
+- The app automatically extracts the original sender's email address from the "From" field
+- This works for various email formats like "Name <email@example.com>" or simple "email@example.com"
+- The recipient's address is clearly shown in the success message after sending
 
 ## Contributing
 

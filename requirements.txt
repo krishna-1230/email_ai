@@ -6,12 +6,18 @@ langchain-google-genai>=0.0.5
 google-auth-oauthlib>=1.2.0
 google-auth-httplib2>=0.1.1
 google-api-python-client>=2.118.0
+google-generative-ai>=0.1.0
+langdetect>=1.0.0
+cachetools>=5.0.0
 
 # Vector database
-pinecone>=3.0.0
+pinecone-client>=3.0.0
 
 # Local LLM
 ollama>=0.1.0
+
+# Email handling
+# Note: smtplib is part of Python's standard library, no need to add it to requirements
 
 # Utilities
 python-dateutil>=2.8.2
