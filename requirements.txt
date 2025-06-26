@@ -9,6 +9,7 @@ google-api-python-client>=2.118.0
 google-generative-ai>=0.1.0
 langdetect>=1.0.0
 cachetools>=5.0.0
+pytz>=2024.1
 
 # Vector database
 pinecone-client>=3.0.0
@@ -25,6 +26,7 @@ pytz>=2024.1
 cryptography>=42.0.0
 pydantic>=2.6.0
 tenacity>=8.2.3
+requests>=2.31.0
 
 # Testing
 pytest>=8.0.0

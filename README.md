@@ -7,6 +7,12 @@ An intelligent email assistant that helps you manage your inbox by analyzing ema
 - 📧 Smart email thread analysis
 - 🤖 AI-powered reply generation in multiple tones
 - 📅 Meeting scheduling and calendar management
+  - View upcoming meetings
+  - Schedule new meetings with intelligent time selection
+  - Edit and cancel existing meetings
+  - Find available time slots based on your calendar
+  - Auto-detect meeting requests in emails
+  - Smart time zone handling
 - 🌐 Language translation
 - 📊 Sentiment and urgency analysis
 - 🔒 Secure credential management
@@ -19,7 +25,7 @@ An intelligent email assistant that helps you manage your inbox by analyzing ema
 - Python 3.8 or higher
 - Ollama with Llama 3.2 installed
 - Gmail account
-- Google Cloud Project with Gmail API enabled
+- Google Cloud Project with Gmail API and Google Calendar API enabled
 - Gemini API key
 - Pinecone serverless account with existing index
 
@@ -71,7 +77,11 @@ streamlit run app.py
    - Go to "APIs & Services" > "OAuth consent screen"
    - Select "External" user type
    - Fill in the required information (app name, user support email, developer contact)
-   - Add the necessary scopes: `.../auth/gmail.readonly` and `.../auth/calendar`
+   - Add the necessary scopes: 
+     - `.../auth/gmail.readonly` (Read Gmail messages)
+     - `.../auth/gmail.send` (Send Gmail messages)
+     - `.../auth/calendar` (Read/write calendar data)
+     - `.../auth/calendar.events` (Manage calendar events)
    - Add your email as a test user
 
 ### 2. Gemini API Setup
@@ -130,7 +140,7 @@ GEMINI_API_KEY=your_api_key
 # Pinecone Vector Database
 PINECONE_API_KEY=your_api_key
 PINECONE_INDEX=emailai
-PINECONE_HOST=https://emailai-xod54xm.svc.aped-4627-b74a.pinecone.io
+PINECONE_HOST=your_pinecone_host
 PINECONE_DIMENSIONS=1024
 PINECONE_METRIC=cosine
 PINECONE_EMBEDDING_MODEL=llama-text-embed-v2
@@ -149,6 +159,7 @@ MEETING_DURATION_MINUTES=30
 DAYS_AHEAD_FOR_SCHEDULING=7
 DEFAULT_TARGET_LANGUAGE=en
 ENABLE_AUTO_TRANSLATION=False
+TIMEZONE=UTC
 
 # Security Settings
 ENCRYPTION_KEY=your_encryption_key
@@ -177,12 +188,64 @@ streamlit run app.py
 
 3. Authenticate with your Gmail account when prompted
 
-4. Features available in the web interface:
+4. Email Management Features:
    - View and select email threads
    - Generate AI-powered replies in different tones (formal, casual, direct)
-   - Schedule meetings based on email content
-   - Translate emails to different languages
    - Analyze email sentiment and urgency
+   - Translate emails to different languages
+
+5. Calendar Management:
+   - Use the navigation menu in the sidebar to switch to the Calendar Management view
+   - View your upcoming meetings and appointments
+   - Schedule new meetings with intelligent time slot suggestions
+   - Find available meeting slots based on your calendar
+   - Edit existing meetings (change time, attendees, description)
+   - Cancel meetings with optional notifications to attendees
+
+6. Meeting Scheduling from Emails:
+   - When analyzing an email thread, the system detects meeting requests
+   - The system suggests available meeting times based on your calendar and the email context
+   - You can select a suggested time slot and provide meeting details
+   - Calendar invites are automatically sent to all participants
+
+## Testing Calendar Functionality
+
+You can test the calendar features separately using the test script:
+
+```bash
+python test_calendar.py
+```
+
+This script will:
+- Verify authentication with the Google Calendar API
+- Display your upcoming meetings
+- Find available time slots for scheduling
+- (Optionally) Test creating and cancelling a meeting
+
+## Calendar API Features Reference
+
+The calendar management system provides the following capabilities:
+
+### Meeting Extraction from Email
+
+- Detects meeting requests through language patterns
+- Extracts dates, times, and days mentioned in emails
+- Identifies contextual meeting-related content
+
+### Time Slot Management
+
+- Finds available meeting slots based on your Google Calendar
+- Intelligently avoids times when you're busy
+- Limits suggestions to business hours (9 AM - 5 PM, Monday-Friday)
+- Takes time zone into account
+
+### Calendar Operations
+
+- Create new meetings with titles, descriptions, and attendee lists
+- Schedule meetings with notification settings
+- Update existing meetings (time, attendees, description, location)
+- Cancel meetings with optional attendee notifications
+- View list of upcoming meetings
 
 ## Security Considerations
 
@@ -198,113 +261,30 @@ streamlit run app.py
 
 If you encounter authorization issues:
 1. Click "Reauthorize with Send Permission" button if shown
-2. Ensure you've granted both read and send permissions to the application
-3. Delete the token.pickle file to force reauthorization
+2. Or manually delete `token.pickle` file and restart the application
+3. Make sure you've granted all required permissions during authorization
 
-### Email Sending Issues
+### Calendar API Permissions
 
-If replies aren't appearing in the sender/recipient inboxes:
-1. Check your Gmail spam folder
-2. Verify that you've configured the correct SMTP settings in the .env file
-3. For Gmail, make sure you're using an App Password if you have 2FA enabled
-4. Look in your Sent folder to ensure the email was sent
+If calendar features aren't working:
+1. Ensure you've enabled Google Calendar API in Google Cloud Console
+2. Verify you've granted the required calendar scopes during authentication
+3. Check the `.env` file for proper TIMEZONE setting (e.g., "America/New_York")
+4. Run `python test_calendar.py` to diagnose specific issues
 
-#### Using SMTP Email Sending
+### Email Sending Problems
 
-For email sending using SMTP:
-1. Set up your SMTP credentials in the `.env` file:
-   ```
-   SMTP_SERVER=smtp.gmail.com
-   SMTP_PORT=587
-   SMTP_USERNAME=your_email@gmail.com
-   SMTP_PASSWORD=your_app_password
-   ```
-2. For Gmail, you'll need to create an App Password:
-   - Go to your Google Account > Security > 2-Step Verification
-   - At the bottom, click "App passwords"
-   - Select "Mail" and "Other (Custom name)"
-   - Enter "Email AI Assistant" and generate
-   - Copy the 16-character password to your `.env` file
+If emails aren't sending:
+1. Verify your SMTP settings in the `.env` file
+2. For Gmail, you'll need an App Password if you have 2FA enabled
+3. Check the email_reader.log file for specific errors
 
-### API Limits and Quotas
+## Additional Information
 
-- The Gemini API has rate limits that may affect reply generation
-- Gmail API also has quotas to prevent abuse
-
-### Gmail API Authentication Issues
-
-- **Error**: "The client_secrets.json file is missing or invalid."
-  - **Solution**: Ensure `credentials.json` is in the project root and has the correct format.
-
-- **Error**: "Access Not Configured. Gmail API has not been used in project..."
-  - **Solution**: Make sure you've enabled the Gmail API in the Google Cloud Console.
-
-- **Error**: "Error 403: Access Denied"
-  - **Solution**: Verify that your OAuth consent screen is configured correctly and your email is added as a test user.
-
-### Pinecone Connection Issues
-
-- **Error**: "API key is invalid"
-  - **Solution**: Double-check your Pinecone API key in the `.env` file.
-
-- **Error**: "Index not found"
-  - **Solution**: Verify that you've created the index with the correct name and configuration.
-
-- **Error**: "Dimension mismatch"
-  - **Solution**: Ensure your index is configured with 1024 dimensions.
-
-### Ollama Issues
-
-- **Error**: "Failed to connect to Ollama server"
-  - **Solution**: Make sure Ollama is running with `ollama serve`.
-
-- **Error**: "Model not found"
-  - **Solution**: Pull the model with `ollama pull llama2`.
-
-- **Error**: "Connection refused"
-  - **Solution**: Check if Ollama is accessible at http://localhost:11434.
-
-### Gemini API Issues
-
-- **Error**: "API key not valid"
-  - **Solution**: Verify your Gemini API key in the `.env` file.
-
-- **Error**: "Quota exceeded"
-  - **Solution**: Check your usage in the Google AI Studio dashboard.
-
-## Email Sending Features
-
-The application now provides two main ways to send emails:
-
-### 1. AI-Generated Replies
-After analyzing an email thread, you can send AI-generated replies in different tones:
-1. Select an email thread from the dropdown
-2. Click "Analyze Thread"
-3. Review the suggested replies in the "Formal", "Casual", or "Direct" tabs
-4. Click "Use [tone] Reply" to send the reply immediately to the original sender
-
-### 2. Direct Email Sending
-The "Send Reply" section in the sidebar allows you to send custom emails directly:
-1. Enter the recipient's email address
-2. Write your message
-3. Set a subject line
-4. Click "Send Email"
-
-Both methods use the secure SMTP connection configured in your .env file.
-
-### Notes on Email Addresses
-
-- The app automatically extracts the original sender's email address from the "From" field
-- This works for various email formats like "Name <email@example.com>" or simple "email@example.com"
-- The recipient's address is clearly shown in the success message after sending
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+* Time zone handling: The app uses your Google Calendar time zone settings
+* Business hours: Default is 9 AM - 5 PM Monday-Friday, but can be customized
+* Meeting duration: Default is 30 minutes, but can be adjusted for each meeting
+* Email reply tones: Choose between formal, casual, or direct tones
 
 ## License
 

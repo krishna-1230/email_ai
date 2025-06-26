@@ -11,8 +11,13 @@ from cachetools import LRUCache
 # Disable the googleapiclient file_cache warning
 logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
 
-# Gmail API scopes
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send']
+# Gmail API and Google Calendar API scopes
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.readonly', 
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/calendar',         # Full access to Calendar
+    'https://www.googleapis.com/auth/calendar.events'   # Full access to Calendar events
+]
 
 def get_gmail_service():
     """Get Gmail API service instance and credentials."""

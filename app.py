@@ -1,6 +1,8 @@
 import streamlit as st
 import os
 import datetime
+import traceback
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from backend.email_reader import EmailReader
@@ -9,8 +11,13 @@ from backend.reply_generator import ReplyGenerator
 from backend.scheduler import MeetingScheduler
 from backend.translator import EmailTranslator
 from backend.simple_email_sender import send_reply_email
+from backend.calendar_manager import CalendarManager
 from utils.auth import check_credentials, revoke_credentials, get_gmail_service
 from utils.config import get_config
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # Load environment variables
 load_dotenv()
@@ -34,6 +41,12 @@ if 'reply_just_sent' not in st.session_state:
     st.session_state.reply_just_sent = False
 if 'recipient_email' not in st.session_state:
     st.session_state.recipient_email = None
+if 'current_view' not in st.session_state:
+    st.session_state.current_view = "email"
+if 'editing_meeting' not in st.session_state:
+    st.session_state.editing_meeting = False
+if 'scheduling_new_meeting' not in st.session_state:
+    st.session_state.scheduling_new_meeting = False
 
 # Load and validate configuration
 try:
@@ -57,11 +70,12 @@ try:
             if token_path.exists():
                 token_path.unlink()
             st.success("Token deleted. Please refresh the page to reauthorize.")
-            st.button("Refresh Now", on_click=st.experimental_rerun)
+            st.button("Refresh Now", on_click=st.rerun)
     
     context_analyzer = ContextAnalyzer()
     reply_generator = ReplyGenerator()
     meeting_scheduler = MeetingScheduler(gmail_creds)
+    calendar_manager = CalendarManager(meeting_scheduler)
     email_translator = EmailTranslator()
 except Exception as e:
     st.error(f"Initialization Error: {str(e)}")
@@ -101,7 +115,7 @@ def main():
         if st.button("Authenticate"):
             try:
                 EmailReader()  # This will trigger the OAuth flow
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"Authentication Error: {str(e)}")
         return
@@ -109,6 +123,20 @@ def main():
     # Sidebar
     with st.sidebar:
         st.header("Settings")
+        
+        # View selector
+        st.subheader("Navigation")
+        view_options = {
+            "email": "📧 Email Management", 
+            "calendar": "📅 Calendar Management"
+        }
+        selected_view = st.radio(
+            "Select View",
+            options=list(view_options.keys()),
+            format_func=lambda x: view_options[x],
+            index=0 if st.session_state.current_view == "email" else 1
+        )
+        st.session_state.current_view = selected_view
         
         # Email settings
         st.subheader("Email Settings")
@@ -136,7 +164,7 @@ def main():
         
         if st.button("Logout"):
             revoke_credentials()
-            st.experimental_rerun()
+            st.rerun()
 
         # Send Reply section (renamed from Debug Tools)
         st.subheader("Send Reply")
@@ -163,8 +191,15 @@ def main():
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
     
-    # Main content
-    st.header("Email Threads")
+    # Main content - Show either Email Management or Calendar Management based on selected view
+    if st.session_state.current_view == "email":
+        render_email_management()
+    else:
+        calendar_manager.render_calendar_management_ui()
+
+def render_email_management():
+    """Render the email management interface."""
+    st.header("Email Management")
     
     # Fetch and display email threads
     with st.spinner("Fetching email threads..."):
@@ -178,7 +213,6 @@ def main():
     if not threads:
         st.info("No email threads found.")
         return
-    
 
     # Thread selection
     thread_options = {
@@ -377,7 +411,7 @@ def main():
                                                     
                                                     # Refresh button
                                                     if st.button("Refresh", key=f"refresh_{tone}"):
-                                                        st.experimental_rerun()
+                                                        st.rerun()
                                                         
                                                 else:
                                                     # Show error message
@@ -389,7 +423,7 @@ def main():
                                                     
                                                     # Let user try again
                                                     if st.button("Try Again", key=f"retry_{tone}"):
-                                                        st.experimental_rerun()
+                                                        st.rerun()
                                             except Exception as e:
                                                 st.error(f"Error sending email: {str(e)}")
                             
