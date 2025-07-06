@@ -5,7 +5,7 @@ An intelligent email assistant that helps you manage your inbox by analyzing ema
 ## Features
 
 - 📧 Smart email thread analysis
-- 🤖 AI-powered reply generation in multiple tones
+- 🤖 AI-powered reply generation in multiple tones (formal, casual, direct)
 - 📅 Meeting scheduling and calendar management
   - View upcoming meetings
   - Schedule new meetings with intelligent time selection
@@ -13,17 +13,17 @@ An intelligent email assistant that helps you manage your inbox by analyzing ema
   - Find available time slots based on your calendar
   - Auto-detect meeting requests in emails
   - Smart time zone handling
-- 🌐 Language translation
+- 🌐 Language translation for emails
 - 📊 Sentiment and urgency analysis
 - 🔒 Secure credential management
-- 🚀 Local LLM support with Llama 3.2
+- 🚀 Local LLM support with Llama 2
 - 🗄️ Serverless vector storage with Pinecone
 - ✉️ Direct email sending via SMTP
 
 ## Prerequisites
 
 - Python 3.8 or higher
-- Ollama with Llama 3.2 installed
+- Ollama with Llama 2 installed
 - Gmail account
 - Google Cloud Project with Gmail API and Google Calendar API enabled
 - Gemini API key
@@ -33,14 +33,17 @@ An intelligent email assistant that helps you manage your inbox by analyzing ema
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd email_assist
+git clone https://github.com/krishna-1230/email_ai.git
+cd email_ai
 ```
 
 2. Create and activate a virtual environment:
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# On Linux/macOS
+source venv/bin/activate
+# On Windows
+venv\Scripts\activate
 ```
 
 3. Install dependencies:
@@ -54,6 +57,9 @@ pip install -r requirements.txt
 
 5. Launch the application:
 ```bash
+# On Windows
+run_email_ai.bat
+# On Linux/macOS
 streamlit run app.py
 ```
 
@@ -105,7 +111,7 @@ streamlit run app.py
 ### 4. Ollama Setup
 
 1. Install [Ollama](https://ollama.ai/) following the instructions for your platform
-2. Pull the Llama 3.2 model:
+2. Pull the Llama 2 model:
 ```bash
 ollama pull llama2
 ```
@@ -181,6 +187,9 @@ python scripts/generate_key.py
 
 1. Launch the application:
 ```bash
+# On Windows
+run_email_ai.bat
+# On Linux/macOS
 streamlit run app.py
 ```
 
@@ -255,6 +264,32 @@ The calendar management system provides the following capabilities:
 - Ollama runs locally on your machine, keeping your data private
 - Pinecone serverless provides secure vector storage
 
+## Project Structure
+
+```
+email_ai/
+  - app.py                  # Main Streamlit application
+  - backend/                # Core functionality modules
+    - calendar_manager.py   # Calendar operations
+    - context_analyzer.py   # Email analysis
+    - email_reader.py       # Email retrieval
+    - reply_generator.py    # AI reply generation
+    - scheduler.py          # Meeting scheduling
+    - simple_email_sender.py # Email sending
+    - translator.py         # Language translation
+  - config/                 # Configuration
+    - prompts.py            # AI prompt templates
+  - models/                 # AI model interfaces
+    - model_loader.py       # Load and manage AI models
+  - scripts/                # Utility scripts
+    - generate_key.py       # Generate encryption key
+    - setup.py              # Setup environment
+  - utils/                  # Utility functions
+    - auth.py               # Authentication
+    - config.py             # Configuration management
+    - embeddings.py         # Vector embeddings
+```
+
 ## Troubleshooting
 
 ### Gmail Authorization Issues
@@ -277,7 +312,7 @@ If calendar features aren't working:
 If emails aren't sending:
 1. Verify your SMTP settings in the `.env` file
 2. For Gmail, you'll need an App Password if you have 2FA enabled
-3. Check the email_reader.log file for specific errors
+3. Check the logs for specific errors
 
 ## Additional Information
 
@@ -292,9 +327,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- Google Cloud Platform
-- Gemini API
-- Pinecone
-- Ollama
-- Streamlit
-- LangChain "# email_ai" 
+- Google Cloud Platform for Gmail and Calendar APIs
+- Gemini API for advanced language processing
+- Pinecone for vector database capabilities
+- Ollama for local LLM support
+- Streamlit for the user interface
+- LangChain for AI orchestration
